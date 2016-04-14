@@ -4,8 +4,11 @@
 import chainer
 import chainer.functions as F
 import chainer.links as L
+import argparse 
+from chainer import serializers 
 from chainer import optimizers
 import numpy as np
+from chainer import cuda 
 import sys
 import codecs
 import pickle
@@ -80,19 +83,12 @@ class Image2Seq(chainer.Chain):
         """
 
         output_feature = self.output_lstm_1(F.dropout(context, ratio=self.dropout_ratio, train=train))
-        output_feature = self.output_lstm_1(F.dropout(output_feature, ratio=self.dropout_ratio, train=train))
         output_feature = self.output_lstm_2(F.dropout(output_feature, ratio=self.dropout_ratio, train=train))
+        output_feature = self.output_lstm_3(F.dropout(output_feature, ratio=self.dropout_ratio, train=train))
 
-        # output_feature = self.output_lstm_1(context)
-        # output_feature = self.output_lstm_2(output_feature)
-
-        # output_feature = F.dropout(self.output_lstm(context), ratio=self.dropout_ratio, train=train)
-        # output_feature = self.output_lstm(context)
-        # predict_embed_id = F.tanh(F.dropout(self.out_word(output_feature), ratio=self.dropout_ratio, train=train))
-        # predict_embed_id = F.tanh(self.out_word(output_feature))
         predict_embed_id = self.out_word(output_feature)
         if train:
-            t = np.zeros(1, dtype=np.int32)
+            t = xp.zeros(1, dtype=xp.int32)
             t[0] = teacher_embed_id
             t = chainer.Variable(t)
             return F.softmax_cross_entropy(predict_embed_id, t)
@@ -131,13 +127,18 @@ class Image2Seq(chainer.Chain):
         output_feature = self.output_lstm(F.dropout(connector, ratio=self.dropout_ratio, train=train))
         return self.out_word(F.dropout(output_feature, ratio=self.dropout_ratio, train=train))
 
-    def generate(self, context, sentence_limit):
+    def generate(self, context, sentence_limit,gpu=-1):
 
         sentence = ""
         length = 0
         while length < sentence_limit:
-            word_id = self.decode(context, teacher_embed_id=None, train=False)
-            word = self.id2word_output[np.argmax(word_id.data)]
+            decoded_feature = self.decode(context, teacher_embed_id=None, train=False)
+            if gpu >= 0 :
+                word_id = cuda.to_cpu(decoded_feature.data)
+            else:
+                word_id = decoded_feature.data
+
+            word = self.id2word_output[np.argmax(word_id)]
             if word == "<end>":
                 break
             sentence = sentence + word + " "
@@ -147,12 +148,25 @@ class Image2Seq(chainer.Chain):
 
 if __name__ == "__main__":
 
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--gpu', type=int, default=-1)
+    parser.add_argument('--seed', type=int, default=1702)
+    args = parser.parse_args()
+    np.random.seed(args.seed)
+
+
+    # datas : dictionary
     # datas["file_name"] : 入力画像
     # datas["text"] : 目標sequence
     datas = pickle.load(open("./habomaijiro.pkl", "rb"))
-    datas = datas[1:101]
+    datas = datas[:3]
+
+
 
     loader = ImageLoader(size=(227, 227), mean=None)
+
+    xp = cuda.cupy if args.gpu >= 0 else np
 
     # URLを除去
     words = [re.sub('(http|https)://[A-Za-z0-9\'~+\-=_.,/%\?!;:@#\*&\(\)]+', " ", data["text"]) for data in datas]
@@ -165,7 +179,12 @@ if __name__ == "__main__":
     optimizer.setup(model)
     path = "./data/"
     images = [loader.load(path + data["file_name"]) for data in datas]
-    features = [model.encode(np.array([image], dtype=np.float32)) for image in images]
+    # first run
+    features = [model.encode(xp.array([image], dtype=np.float32)) for image in images]
+    pickle.dump(features,open("./features.npy","wb"))
+    # second run
+    #features = pickle.load(open("./features.npy","r"))
+
 
     # datas["text"] : 分かち書き済みtext
     # datas["file_name"] : 画像ファイル名
@@ -205,10 +224,16 @@ if __name__ == "__main__":
             model.initialize()
 
         test_context = datas[epoch % len(datas)]["feature"]
-        sentence = model.generate(test_context, 100)
+        sentence = model.generate(test_context, 100,args.gpu)
         answer = datas[epoch % len(datas)]["text"]
 
         print "(%d) epoch " % epoch
         print "*** answer ***\n", answer, "\n"
         print "*** generated *** \n", sentence , "\n"
         print "==================\n\n"
+
+        if epoch % 100 == 0 :
+            serializers.save_npz("model_%d.npz" % epoch , model)
+            print "model_%d.npz saved" % epoch 
+
+
