@@ -5,6 +5,7 @@ import chainer
 import chainer.functions as F
 import chainer.links as L
 import argparse
+import os
 from chainer import serializers
 from chainer import optimizers
 import numpy as np
@@ -66,8 +67,8 @@ class Image2Seq(chainer.Chain):
         """
         data = F.concat((context, previous_h))
 
-        #output_feature = self.output_lstm_1(F.dropout(data, ratio=self.dropout_ratio, train=train))
-        #output_feature = self.output_lstm_2(F.dropout(output_feature, ratio=self.dropout_ratio, train=train))
+        # output_feature = self.output_lstm_1(F.dropout(data, ratio=self.dropout_ratio, train=train))
+        # output_feature = self.output_lstm_2(F.dropout(output_feature, ratio=self.dropout_ratio, train=train))
         output_feature = self.output_lstm_1(data)
         output_feature = self.output_lstm_2(output_feature)
         h = self.l_3(output_feature)
@@ -90,6 +91,7 @@ class Image2Seq(chainer.Chain):
         self.output_lstm_1.reset_state()
         self.output_lstm_2.reset_state()
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpu', type=int, default=-1)
@@ -98,17 +100,25 @@ if __name__ == "__main__":
     args = parser.parse_args()
     np.random.seed(args.seed)
 
-    # datas : dictionary
-    # datas["file_name"] : 入力画像
-    # datas["text"] : 目標sequence
-    datas = pickle.load(open("./habomaijiro.pkl", "rb"))
-    datas = datas[:3]
-
-    loader = ImageLoader(size=(227, 227), mean=None)
-
     xp = cuda.cupy if args.gpu >= 0 else np
 
-    # TODO 動画読み込み
+    # datas : dictionary
+    # datas["file_name"] : 入力動画の
+    # datas["text"] : 目標sequence
+
+    datas = {}
+    for file_name in [file_name for file_name in os.listdir("./data/movies") if ".pkl" in file_name]:
+        datas[file_name.split("_")[0]] = pickle.load(open("./data/movies/clap_30F.pkl", "r"))
+
+    class2id = pickle.load(open("./data/movies/class2id.pkl", "r"))
+    id2class = {class2id[class_name]: class_name for class_name in class2id.keys()}
+
+    print class2id
+    print id2class
+
+    exit()
+
+    class_num = len(datas.keys())
 
     # TODO 学習データとテストデータに分ける
 
@@ -116,4 +126,3 @@ if __name__ == "__main__":
         pass
         # TODO 学習部分
         # TODO 結果吐き出し
-

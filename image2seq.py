@@ -152,6 +152,8 @@ if __name__ == "__main__":
     output_vocab = make_vocab(words)
 
     model = Image2Seq(output_vocab, feature_num=50, hidden_num=100)
+    if args.gpu >= 0 :
+        model.to_gpu()
 
     optimizer = optimizers.Adam()
     # optimizer = optimizers.SGD()
