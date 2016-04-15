@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/otaku-rnn.iml" filepath="$PROJECT_DIR$/otaku-rnn.iml" />
+      <module fileurl="file://$PROJECT_DIR$/Image2seq.iml" filepath="$PROJECT_DIR$/Image2seq.iml" />
     </modules>
   </component>
 </project>
