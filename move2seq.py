@@ -19,7 +19,7 @@ from tools.io_util import ImageLoader
 from tools.wakater import make_vocab
 
 
-class Image2Seq(chainer.Chain):
+class Movie2Seq(chainer.Chain):
     def __init__(self, class_num, feature_size, hidden_size):
         """
 
@@ -33,7 +33,7 @@ class Image2Seq(chainer.Chain):
         self.dropout_ratio = 0.5
         self.feature = FeatureExtractor("./model/feature_alexbn.npz")
 
-        super(Image2Seq, self).__init__(
+        super(Movie2Seq, self).__init__(
 
                 # connect layer
                 context_lstm=L.LSTM(9216, feature_size),
@@ -116,9 +116,8 @@ if __name__ == "__main__":
     print class2id
     print id2class
 
-    exit()
-
     class_num = len(datas.keys())
+    model = Movie2Seq(class_num, 100, 100)
 
     # TODO 学習データとテストデータに分ける
 

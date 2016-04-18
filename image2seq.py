@@ -56,15 +56,18 @@ class Image2Seq(chainer.Chain):
                 out_word=L.Linear(feature_num, self.output_vocab_size),
         )
 
+    def get_feature(self,src_images):
+        feature = self.feature(src_images)
+        return feature.data
+
     # TODO image encoder
-    def encode(self, src_images, train=True):
+    def encode(self, feature, train=True):
         """
 
-        :param src_images : chainer Variable , (N,3,227,227)
+        :param : feature xp
         :return: context vector
         """
-
-        feature = self.feature(src_images)
+        feature = chainer.Variable(feature)
         context = self.context_lstm(feature)
 
         return context
@@ -76,15 +79,8 @@ class Image2Seq(chainer.Chain):
         :return: decoded embed vector
         """
 
-        # output_feature = self.output_lstm_1(F.dropout(context, ratio=self.dropout_ratio, train=train))
-        #output_feature = F.dropout(self.output_lstm_1(context), ratio=self.dropout_ratio)
-        #output_feature = self.output_lstm_1(F.dropout(context , ratio=self.dropout_ratio ,train=train))
         output_feature = self.output_lstm_1(context )
-        #output_feature = F.dropout(self.output_lstm_2(output_feature), ratio=self.dropout_ratio)
-        #output_feature = self.output_lstm_2(F.dropout(output_feature,ratio=self.dropout_ratio,train=train))
         output_feature = self.output_lstm_2(output_feature)
-        #output_feature = F.dropout(self.output_lstm_3(output_feature),ratio=self.dropout_ratio)
-        #output_feature = self.output_lstm_3(F.dropout(output_feature,ratio=self.dropout_ratio,train=train))
         output_feature = self.output_lstm_3(output_feature)
 
         predict_embed_id = self.out_word(output_feature)
@@ -109,10 +105,19 @@ class Image2Seq(chainer.Chain):
         self.output_lstm_2.reset_state()
         self.output_lstm_3.reset_state()
 
-    def generate(self, context, sentence_limit, gpu=-1):
+    def generate(self, feature, sentence_limit, gpu=-1):
+        """
+
+        :param feature: image feature
+        :param sentence_limit:
+        :param gpu:
+        :return:
+        """
 
         sentence = ""
         length = 0
+        context = self.encode(feature)
+
         while length < sentence_limit:
             decoded_feature = self.decode(context, teacher_embed_id=None, train=False)
 
@@ -120,6 +125,7 @@ class Image2Seq(chainer.Chain):
                 word_id = cuda.to_cpu(decoded_feature.data)
             else:
                 word_id = decoded_feature.data
+            context = decoded_feature
 
             word = self.id2word_output[np.argmax(word_id)]
             if word == "<end>":
@@ -164,7 +170,7 @@ if __name__ == "__main__":
     images = [loader.load(path + data["file_name"]) for data in datas]
 
     # first run
-    features = [model.encode(xp.array([image], dtype=np.float32)) for image in images]
+    features = [model.get_feature(xp.array([image], dtype=np.float32)) for image in images]
     pickle.dump(features,open("./features.npy","wb"))
     # second run
     # features = pickle.load(open("./features.npy", "r"))
@@ -184,7 +190,8 @@ if __name__ == "__main__":
             model.initialize()
 
             # image -> feature
-            context = data["feature"]
+            feature = data["feature"]
+            context = model.encode(feature,train=True)
             teacher_text = data["wakati_text"]
 
             # TODO datas[63] and datas[352] has unexpected char code
