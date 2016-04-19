@@ -18,7 +18,7 @@ from tools.io_util import ImageLoader
 from tools.wakater import make_vocab
 from tools.wakater import wakati
 
-sys.stdout = codecs.getwriter('utf_8')(sys.stdout)
+#sys.stdout = codecs.getwriter('utf_8')(sys.stdout)
 
 
 class Image2Seq(chainer.Chain):
@@ -34,6 +34,9 @@ class Image2Seq(chainer.Chain):
 
         self.dropout_ratio = 0.5
         self.feature = FeatureExtractor("./model/feature_alexbn.npz")
+        # TODO TO GPU
+        # self.feature.model.to_gpu()
+
 
         self.id2word_output = {}
         self.word2id_output = {}
@@ -171,7 +174,7 @@ if __name__ == "__main__":
 
     # first run
     features = [model.get_feature(xp.array([image], dtype=np.float32)) for image in images]
-    pickle.dump(features,open("./features.npy","wb"))
+    pickle.dump(features,open("./features.npy","wb"),-1)
     # second run
     # features = pickle.load(open("./features.npy", "r"))
 
